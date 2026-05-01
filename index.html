@@ -29,7 +29,6 @@
             border-radius: 4px; pointer-events: none; text-shadow: 0 0 5px #00ff9d; z-index: 10;
         }
         
-        /* NEW: SPAWN PROTECTION ANIMATION */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         #status { color: #ffaa00; font-weight: bold; animation: blink 1s infinite; display: none; margin-top: 10px; font-size: 18px; }
 
@@ -56,7 +55,6 @@
 </head>
 <body>
 
-    <!-- HOME SCREEN -->
     <div id="home-screen">
         <h1>SELECT AIRCRAFT</h1>
         <div class="fleet-container">
@@ -104,7 +102,11 @@
                 scale: 0.05,            
                 clearance: 30, 
                 maxSpeed: 520,
-                stallSpeed: 140
+                stallSpeed: 140,
+                // --- NEW CAMERA SETTINGS ---
+                camDist: -220,  // Distance behind the plane (negative goes backwards)
+                camHeight: 60,  // Height above the tail
+                camLookUp: 15   // Look target height (higher number = looks more level/downwards)
             },
             'a380': {
                 name: "AIRBUS A380",
@@ -113,7 +115,11 @@
                 scale: 1.0,             
                 clearance: 15, 
                 maxSpeed: 560,
-                stallSpeed: 160
+                stallSpeed: 160,
+                // --- NEW CAMERA SETTINGS ---
+                camDist: -350,  // The A380 is massive, camera needs to be much further back
+                camHeight: 90,  
+                camLookUp: 25   
             }
         };
 
@@ -186,7 +192,7 @@
         let airplane = null;
         let speed = 0, throttle = 0;
         let gearDown = true, crashed = false;
-        let spawnProtection = false; // THE SLEDGEHAMMER FIX
+        let spawnProtection = false; 
         
         let PHYSICS = { acceleration: 25, liftFactor: 0.05, gravity: 9.81 }; 
         const keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, control: false };
@@ -225,7 +231,6 @@
             airplane = model;
             airplane.scale.setScalar(currentPlaneData.scale);
             
-            // Force it to ground level
             airplane.position.set(0, GROUND_LEVEL + PHYSICS.clearance, 3500); 
             airplane.rotation.set(0, Math.PI, 0); 
             
@@ -235,11 +240,9 @@
             document.getElementById('loading').style.display = 'none';
             document.getElementById('ui').style.display = 'block'; 
 
-            // ACTIVATE INVINCIBILITY FRAMES
             spawnProtection = true;
             document.getElementById('status').style.display = 'block';
             
-            // Turn off invincibility after 3 seconds
             setTimeout(() => {
                 spawnProtection = false;
                 document.getElementById('status').style.display = 'none';
@@ -310,18 +313,15 @@
                 airplane.translateZ(speed * delta);
                 airplane.position.y += verticalVelocity * delta;
 
-                // --- NEW BULLETPROOF COLLISIONS ---
                 const currentHeight = airplane.position.y;
 
                 if (currentHeight <= collisionFloor) {
-                    // FORCE teleport to exact runway level
                     airplane.position.y = collisionFloor; 
                     
                     const pitchRad = airplane.rotation.x;
                     const rollRad = Math.abs(airplane.rotation.z);
                     
                     if (!spawnProtection) {
-                        // Normal crash rules apply
                         if (verticalVelocity < -20 || pitchRad < -0.15 || rollRad > 0.3 || (!gearDown && speed > 50)) {
                             crashed = true;
                             document.getElementById('crash-screen').style.display = "flex";
@@ -330,7 +330,6 @@
                             else document.getElementById('crash-reason').innerText = "HARD LANDING. VERTICAL SPEED TOO HIGH.";
                         }
                     } else {
-                        // If spawn protection is ON, ignore crashes, zero out falling, and auto-level the wings
                         verticalVelocity = 0;
                         airplane.rotation.x = 0;
                         airplane.rotation.z = 0;
@@ -344,17 +343,28 @@
                 if (Math.abs(airplane.position.x - terminal.position.x) < 400 && 
                     Math.abs(airplane.position.z - terminal.position.z) < 150 && 
                     airplane.position.y < (GROUND_LEVEL + 100)) {
-                    if (!spawnProtection) { // Buildings can't kill you during spawn either
+                    if (!spawnProtection) { 
                         crashed = true; 
                         document.getElementById('crash-screen').style.display = "flex"; 
                         document.getElementById('crash-reason').innerText = "COLLISION WITH TERMINAL BUILDING!";
                     }
                 }
 
-                const relativeCameraOffset = new THREE.Vector3(0, 40, -150);
-                const cameraOffset = relativeCameraOffset.applyMatrix4(airplane.matrixWorld);
-                camera.position.lerp(cameraOffset, 0.1);
-                camera.lookAt(airplane.position.x, airplane.position.y + 20, airplane.position.z);
+                // --- NEW SCALE-INDEPENDENT CHASE CAMERA ---
+                // 1. Create a distance offset based on the specific plane's fleet settings
+                const camOffset = new THREE.Vector3(0, currentPlaneData.camHeight, currentPlaneData.camDist);
+                
+                // 2. Rotate the camera to match the airplane's direction (ignores scale)
+                camOffset.applyQuaternion(airplane.quaternion);
+                
+                // 3. Add the rotated offset to the airplane's real world position
+                const targetCamPos = airplane.position.clone().add(camOffset);
+                
+                // 4. Move the camera smoothly
+                camera.position.lerp(targetCamPos, 0.1);
+                
+                // 5. Look straight ahead, slightly above the plane
+                camera.lookAt(airplane.position.x, airplane.position.y + currentPlaneData.camLookUp, airplane.position.z);
 
                 document.getElementById('speed').innerText = Math.round(speed);
                 const displayAlt = Math.max(0, Math.round((airplane.position.y - collisionFloor) * 3.28));
