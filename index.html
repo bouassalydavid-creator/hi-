@@ -28,6 +28,11 @@
             background: rgba(0, 15, 5, 0.7); padding: 20px; border: 1px solid #00ff9d;
             border-radius: 4px; pointer-events: none; text-shadow: 0 0 5px #00ff9d; z-index: 10;
         }
+        
+        /* NEW: SPAWN PROTECTION ANIMATION */
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        #status { color: #ffaa00; font-weight: bold; animation: blink 1s infinite; display: none; margin-top: 10px; font-size: 18px; }
+
         #loading {
             display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: white; font-size: 24px; background: rgba(0,0,0,0.8);
@@ -77,6 +82,7 @@
     <div id="ui">
         <h2 style="margin-top:0;" id="plane-name-ui">SKYBORNE OS</h2>
         <div>TIME: <span id="time-display">12:00</span></div>
+        <div id="status">⚠ SPAWN PROTECTION ACTIVE ⚠</div>
         <hr style="border-color: #00ff9d;">
         <div>AIRSPEED: <span id="speed">0</span> KTS</div>
         <div>ALTITUDE: <span id="alt">0</span> FT</div>
@@ -176,10 +182,12 @@
         tower.position.set(-300, GROUND_LEVEL + 150, 0); 
         scene.add(tower);
 
-        // --- FLIGHT VARIABLES ---
+        // --- FLIGHT VARIABLES & SPAWN PROTECTION ---
         let airplane = null;
         let speed = 0, throttle = 0;
         let gearDown = true, crashed = false;
+        let spawnProtection = false; // THE SLEDGEHAMMER FIX
+        
         let PHYSICS = { acceleration: 25, liftFactor: 0.05, gravity: 9.81 }; 
         const keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, control: false };
 
@@ -216,6 +224,8 @@
         function onModelLoaded(model) {
             airplane = model;
             airplane.scale.setScalar(currentPlaneData.scale);
+            
+            // Force it to ground level
             airplane.position.set(0, GROUND_LEVEL + PHYSICS.clearance, 3500); 
             airplane.rotation.set(0, Math.PI, 0); 
             
@@ -224,6 +234,16 @@
             
             document.getElementById('loading').style.display = 'none';
             document.getElementById('ui').style.display = 'block'; 
+
+            // ACTIVATE INVINCIBILITY FRAMES
+            spawnProtection = true;
+            document.getElementById('status').style.display = 'block';
+            
+            // Turn off invincibility after 3 seconds
+            setTimeout(() => {
+                spawnProtection = false;
+                document.getElementById('status').style.display = 'none';
+            }, 3000);
         }
 
         function onProgress(xhr) { document.getElementById('loading').innerText = `DOWNLOADING ${currentPlaneData.name}: ${Math.round(xhr.loaded / xhr.total * 100)}%`; }
@@ -273,7 +293,6 @@
 
                 airplane.rotation.z -= airplane.rotation.z * 1.0 * delta;
 
-                // --- GRAVITY BUG FIX ---
                 const collisionFloor = GROUND_LEVEL + PHYSICS.clearance;
                 let verticalVelocity = 0;
 
@@ -291,31 +310,45 @@
                 airplane.translateZ(speed * delta);
                 airplane.position.y += verticalVelocity * delta;
 
-                // --- COLLISIONS ---
+                // --- NEW BULLETPROOF COLLISIONS ---
                 const currentHeight = airplane.position.y;
 
                 if (currentHeight <= collisionFloor) {
+                    // FORCE teleport to exact runway level
                     airplane.position.y = collisionFloor; 
                     
                     const pitchRad = airplane.rotation.x;
                     const rollRad = Math.abs(airplane.rotation.z);
                     
-                    if (verticalVelocity < -20 || pitchRad < -0.15 || rollRad > 0.3 || (!gearDown && speed > 50)) {
-                        crashed = true;
-                        document.getElementById('crash-screen').style.display = "flex";
-                        if (!gearDown) document.getElementById('crash-reason').innerText = "BELLY LANDING. GEAR WAS UP!";
-                        else if (pitchRad < -0.15) document.getElementById('crash-reason').innerText = "NOSE DIVE. PITCHED TOO FAR DOWN.";
-                        else document.getElementById('crash-reason').innerText = "HARD LANDING. VERTICAL SPEED TOO HIGH.";
+                    if (!spawnProtection) {
+                        // Normal crash rules apply
+                        if (verticalVelocity < -20 || pitchRad < -0.15 || rollRad > 0.3 || (!gearDown && speed > 50)) {
+                            crashed = true;
+                            document.getElementById('crash-screen').style.display = "flex";
+                            if (!gearDown) document.getElementById('crash-reason').innerText = "BELLY LANDING. GEAR WAS UP!";
+                            else if (pitchRad < -0.15) document.getElementById('crash-reason').innerText = "NOSE DIVE. PITCHED TOO FAR DOWN.";
+                            else document.getElementById('crash-reason').innerText = "HARD LANDING. VERTICAL SPEED TOO HIGH.";
+                        }
+                    } else {
+                        // If spawn protection is ON, ignore crashes, zero out falling, and auto-level the wings
+                        verticalVelocity = 0;
+                        airplane.rotation.x = 0;
+                        airplane.rotation.z = 0;
                     }
-                    airplane.rotation.x -= airplane.rotation.x * 5 * delta;
+                    
+                    if (!crashed) {
+                        airplane.rotation.x -= airplane.rotation.x * 5 * delta;
+                    }
                 }
 
                 if (Math.abs(airplane.position.x - terminal.position.x) < 400 && 
                     Math.abs(airplane.position.z - terminal.position.z) < 150 && 
                     airplane.position.y < (GROUND_LEVEL + 100)) {
-                    crashed = true; 
-                    document.getElementById('crash-screen').style.display = "flex"; 
-                    document.getElementById('crash-reason').innerText = "COLLISION WITH TERMINAL BUILDING!";
+                    if (!spawnProtection) { // Buildings can't kill you during spawn either
+                        crashed = true; 
+                        document.getElementById('crash-screen').style.display = "flex"; 
+                        document.getElementById('crash-reason').innerText = "COLLISION WITH TERMINAL BUILDING!";
+                    }
                 }
 
                 const relativeCameraOffset = new THREE.Vector3(0, 40, -150);
