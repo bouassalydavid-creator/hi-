@@ -7,7 +7,6 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
         
-        /* HOME SCREEN UI */
         #home-screen {
             position: absolute; inset: 0; background: linear-gradient(135deg, #051015 0%, #000000 100%);
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200;
@@ -22,7 +21,6 @@
         .plane-card:hover { background: rgba(0, 255, 157, 0.2); transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,255,157,0.3); }
         .plane-desc { font-size: 14px; color: #aaa; margin-top: 10px; font-weight: normal; }
 
-        /* IN-GAME UI */
         #ui {
             display: none; position: absolute; top: 20px; left: 20px; color: #00ff9d;
             background: rgba(0, 15, 5, 0.7); padding: 20px; border: 1px solid #00ff9d;
@@ -97,43 +95,43 @@
         import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // --- 10X SCALED AIRCRAFT CONFIGURATIONS ---
+        // --- BACK TO STABLE SCALE, MUCH CLOSER CAMERA ---
         const FLEET = {
             '737': {
                 name: "BOEING 737 MAX",
                 filename: "plane.fbx",
                 type: "fbx",
-                scale: 0.5,            // 10x larger
-                clearance: 300,        // 10x larger wheel drop
+                scale: 0.05,            
+                clearance: 30, 
                 maxSpeed: 520,
                 stallSpeed: 140,
-                camDist: -2200,        // 10x further back
-                camHeight: 600,        // 10x higher up
-                camLookUp: 15   
+                camDist: -100,  // WAY CLOSER (Was -220)
+                camHeight: 30,  // LOWERED (Was 60)
+                camLookUp: 10   
             },
             '747': {
                 name: "AIR FRANCE 747-400",
                 filename: "air_france_boeing_747-400.glb",
                 type: "glb",
-                scale: 10.0,           // 10x larger   
-                clearance: 180,        // 10x larger wheel drop
+                scale: 1.0,             
+                clearance: 18, 
                 maxSpeed: 540,
                 stallSpeed: 150,
-                camDist: -2800,        // 10x further back
-                camHeight: 700,        // 10x higher up
-                camLookUp: 20   
+                camDist: -160,  // WAY CLOSER (Was -280)
+                camHeight: 45,  // LOWERED (Was 70)
+                camLookUp: 15   
             },
             'a380': {
                 name: "AIRBUS A380",
                 filename: "airbus-a380.glb",
                 type: "glb",
-                scale: 10.0,           // 10x larger
-                clearance: 150,        // 10x larger wheel drop
+                scale: 1.0,             
+                clearance: 15, 
                 maxSpeed: 560,
                 stallSpeed: 160,
-                camDist: -3500,        // 10x further back
-                camHeight: 900,        // 10x higher up
-                camLookUp: 25   
+                camDist: -180,  // WAY CLOSER (Was -350)
+                camHeight: 50,  // LOWERED (Was 90)
+                camLookUp: 15   
             }
         };
 
@@ -188,21 +186,18 @@
             tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; return tex;
         }
 
-        // --- WIDENED & LENGTHENED RUNWAY ---
-        const runway = new THREE.Mesh(new THREE.PlaneGeometry(1500, 20000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 }));
+        const runway = new THREE.Mesh(new THREE.PlaneGeometry(300, 8000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 }));
         runway.rotation.x = -Math.PI / 2; 
         runway.position.y = GROUND_LEVEL + 1; 
         runway.receiveShadow = true; 
         scene.add(runway);
 
-        // Scaled up Terminal Building
-        const terminal = new THREE.Mesh(new THREE.BoxGeometry(2000, 300, 800), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
-        terminal.position.set(-1500, GROUND_LEVEL + 150, 0); 
+        const terminal = new THREE.Mesh(new THREE.BoxGeometry(800, 100, 300), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
+        terminal.position.set(-600, GROUND_LEVEL + 50, 0); 
         scene.add(terminal);
         
-        // Scaled up Control Tower
-        const tower = new THREE.Mesh(new THREE.BoxGeometry(150, 800, 150), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
-        tower.position.set(-800, GROUND_LEVEL + 400, 0); 
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(50, 300, 50), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
+        tower.position.set(-300, GROUND_LEVEL + 150, 0); 
         scene.add(tower);
 
         // --- FLIGHT VARIABLES & SPAWN PROTECTION ---
@@ -358,9 +353,9 @@
                     }
                 }
 
-                if (Math.abs(airplane.position.x - terminal.position.x) < 1000 && 
-                    Math.abs(airplane.position.z - terminal.position.z) < 400 && 
-                    airplane.position.y < (GROUND_LEVEL + 300)) {
+                if (Math.abs(airplane.position.x - terminal.position.x) < 400 && 
+                    Math.abs(airplane.position.z - terminal.position.z) < 150 && 
+                    airplane.position.y < (GROUND_LEVEL + 100)) {
                     if (!spawnProtection) { 
                         crashed = true; 
                         document.getElementById('crash-screen').style.display = "flex"; 
