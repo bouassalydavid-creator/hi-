@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>737 MAX Flight Simulator</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: monospace; }
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: white;
+            background: rgba(0, 0, 0, 0.5); padding: 15px; border-radius: 8px;
+            pointer-events: none; text-shadow: 1px 1px 2px black;
+        }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 24px; background: rgba(0,0,0,0.8);
+            padding: 20px 40px; border-radius: 10px; font-weight: bold;
+        }
+    </style>
+    <!-- Import Maps for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="loading">Downloading plane.fbx... Please wait.</div>
+    <div id="ui">
+        <h2>FLIGHT SYSTEMS</h2>
+        <div>SPEED: <span id="speed">0</span> kts</div>
+        <div>ALTITUDE: <span id="alt">0</span> ft</div>
+        <div>THROTTLE: <span id="throttle">0</span>%</div>
+        <br>
+        <div><b>CONTROLS:</b></div>
+        <div>W / S : Pitch Down / Up</div>
+        <div>A / D : Roll Left / Right</div>
+        <div>Q / E : Yaw Left / Right</div>
+        <div>Shift / Ctrl : Throttle Up / Down</div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+        // 1. Scene Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.0002);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 50000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2. Lighting
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+        hemiLight.position.set(0, 2000, 0);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(0, 2000, 1000);
+        scene.add(dirLight);
+
+        // 3. Environment (Simple Ground grid)
+        const gridHelper = new THREE.GridHelper(10000, 100, 0x000000, 0x000000);
+        gridHelper.material.opacity = 0.2;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+
+        // 4. Variables & Physics State
+        let airplane = null;
+        let speed = 0;
+        let throttle = 0;
+        const maxSpeed = 500;
+        
+        const keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, control: false };
+
+        // Input Listeners
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = false;
+        });
+
+        // 5. Load the FBX Model
+        const loader = new FBXLoader();
+        // Pointing exactly to plane.fbx in the same folder
+        loader.load('./plane.fbx', function (object) {
+            airplane = object;
+            
+            // FBX files are often huge, scale it down to a reasonable size
+            airplane.scale.set(0.05, 0.05, 0.05); 
+            airplane.position.set(0, 50, 0); // Start slightly in the air
+            
+            scene.add(airplane);
+            document.getElementById('loading').style.display = 'none'; // Hide loading screen
+        }, 
+        function (xhr) {
+            // Update loading text with progress percentage
+            document.getElementById('loading').innerText = `Loading Model: ${Math.round(xhr.loaded / xhr.total * 100)}%`;
+        }, 
+        function (error) {
+            console.error(error);
+            document.getElementById('loading').innerText = "Error loading plane.fbx. Check console.";
+        });
+
+        // 6. Game Loop
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (airplane) {
+                // Handle Throttle
+                if (keys.shift && throttle < 100) throttle += 20 * delta;
+                if (keys.control && throttle > 0) throttle -= 20 * delta;
+                
+                // Calculate Speed based on throttle
+                const targetSpeed = (throttle / 100) * maxSpeed;
+                speed += (targetSpeed - speed) * 0.5 * delta;
+
+                // Handle Flight Controls (only if moving fast enough)
+                const isFlying = speed > 50; 
+                const turnSpeed = isFlying ? 1.5 * delta : 0;
+                const pitchSpeed = isFlying ? 1.0 * delta : 0;
+
+                if (keys.w) airplane.rotateX(-pitchSpeed);
+                if (keys.s) airplane.rotateX(pitchSpeed);
+                if (keys.a) airplane.rotateZ(turnSpeed);
+                if (keys.d) airplane.rotateZ(-turnSpeed);
+                if (keys.q) airplane.rotateY(turnSpeed);
+                if (keys.e) airplane.rotateY(-turnSpeed);
+
+                // Move airplane forward based on where it's pointing
+                airplane.translateZ(speed * delta);
+
+                // Update Chase Camera
+                const relativeCameraOffset = new THREE.Vector3(0, 30, -100);
+                const cameraOffset = relativeCameraOffset.applyMatrix4(airplane.matrixWorld);
+                camera.position.lerp(cameraOffset, 0.1);
+                camera.lookAt(airplane.position);
+
+                // Update UI
+                document.getElementById('speed').innerText = Math.round(speed);
+                document.getElementById('alt').innerText = Math.round(airplane.position.y);
+                document.getElementById('throttle').innerText = Math.round(throttle);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
