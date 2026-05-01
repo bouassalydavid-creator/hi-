@@ -96,7 +96,7 @@
                 filename: "plane.fbx",
                 type: "fbx",
                 scale: 0.05,            
-                clearance: 30, // 30 units from origin down to the wheels
+                clearance: 30, 
                 maxSpeed: 520,
                 stallSpeed: 140
             },
@@ -105,7 +105,7 @@
                 filename: "airbus-a380.glb",
                 type: "glb",
                 scale: 1.0,             
-                clearance: 15, // 15 units from origin down to the wheels
+                clearance: 15, 
                 maxSpeed: 560,
                 stallSpeed: 160
             }
@@ -131,10 +131,9 @@
         sunLight.shadow.camera.far = 20000;
         scene.add(sunLight);
 
-        // --- ENVIRONMENT (WORLD DROPPED BY 30 UNITS) ---
+        // --- ENVIRONMENT ---
         const GROUND_LEVEL = -30;
 
-        // 1. Grass
         const groundGeo = new THREE.PlaneGeometry(100000, 100000);
         const groundMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, roughness: 0.9 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -143,7 +142,6 @@
         ground.receiveShadow = true; 
         scene.add(ground);
 
-        // 2. Runway
         function createRunwayTexture() {
             const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 4096;
             const ctx = canvas.getContext('2d');
@@ -166,11 +164,10 @@
 
         const runway = new THREE.Mesh(new THREE.PlaneGeometry(300, 8000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 }));
         runway.rotation.x = -Math.PI / 2; 
-        runway.position.y = GROUND_LEVEL + 1; // Slightly above grass
+        runway.position.y = GROUND_LEVEL + 1; 
         runway.receiveShadow = true; 
         scene.add(runway);
 
-        // 3. Buildings
         const terminal = new THREE.Mesh(new THREE.BoxGeometry(800, 100, 300), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
         terminal.position.set(-600, GROUND_LEVEL + 50, 0); 
         scene.add(terminal);
@@ -188,7 +185,6 @@
 
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = true;
-            // Only allow gear toggle if safely in the air
             if (key === 'g' && !crashed && airplane && airplane.position.y > (GROUND_LEVEL + PHYSICS.clearance + 20)) gearDown = !gearDown;
         });
         window.addEventListener('keyup', (e) => { const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = false; });
@@ -220,8 +216,6 @@
         function onModelLoaded(model) {
             airplane = model;
             airplane.scale.setScalar(currentPlaneData.scale);
-            
-            // Spawn exactly so the wheels touch the lowered runway
             airplane.position.set(0, GROUND_LEVEL + PHYSICS.clearance, 3500); 
             airplane.rotation.set(0, Math.PI, 0); 
             
@@ -267,7 +261,6 @@
                 const turnAgility = isFlying ? 1.2 * delta : 0;
                 const pitchAgility = isFlying ? 0.8 * delta : 0;
                 
-                // Allow steering on ground
                 const isTouchingGround = airplane.position.y <= (GROUND_LEVEL + PHYSICS.clearance + 1);
                 const groundSteer = (!isFlying && isTouchingGround) ? 0.5 * delta : 0;
 
@@ -280,20 +273,27 @@
 
                 airplane.rotation.z -= airplane.rotation.z * 1.0 * delta;
 
+                // --- GRAVITY BUG FIX ---
+                const collisionFloor = GROUND_LEVEL + PHYSICS.clearance;
                 let verticalVelocity = 0;
+
                 if (isFlying) {
                     const lift = (speed - PHYSICS.stallSpeed) * PHYSICS.liftFactor;
                     verticalVelocity = lift - PHYSICS.gravity;
-                } else verticalVelocity = -PHYSICS.gravity * 3; 
+                } else {
+                    if (airplane.position.y > collisionFloor + 1) {
+                        verticalVelocity = -PHYSICS.gravity * 3; 
+                    } else {
+                        verticalVelocity = 0; 
+                    }
+                }
                 
                 airplane.translateZ(speed * delta);
                 airplane.position.y += verticalVelocity * delta;
 
                 // --- COLLISIONS ---
                 const currentHeight = airplane.position.y;
-                const collisionFloor = GROUND_LEVEL + PHYSICS.clearance;
 
-                // Ground Collision
                 if (currentHeight <= collisionFloor) {
                     airplane.position.y = collisionFloor; 
                     
@@ -310,7 +310,6 @@
                     airplane.rotation.x -= airplane.rotation.x * 5 * delta;
                 }
 
-                // Terminal Building Collision (Updated with GROUND_LEVEL)
                 if (Math.abs(airplane.position.x - terminal.position.x) < 400 && 
                     Math.abs(airplane.position.z - terminal.position.z) < 150 && 
                     airplane.position.y < (GROUND_LEVEL + 100)) {
@@ -324,9 +323,7 @@
                 camera.position.lerp(cameraOffset, 0.1);
                 camera.lookAt(airplane.position.x, airplane.position.y + 20, airplane.position.z);
 
-                // UI Updates
                 document.getElementById('speed').innerText = Math.round(speed);
-                // Calculate Altitude relative to the ground floor, not true zero
                 const displayAlt = Math.max(0, Math.round((airplane.position.y - collisionFloor) * 3.28));
                 document.getElementById('alt').innerText = displayAlt; 
                 document.getElementById('throttle').innerText = Math.round(throttle);
