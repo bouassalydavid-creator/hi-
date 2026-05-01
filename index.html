@@ -62,7 +62,6 @@
                 BOEING 737 MAX
                 <div class="plane-desc">Narrow-body · .FBX Format</div>
             </div>
-            <!-- NEW 747 BUTTON -->
             <div class="plane-card" id="btn-747">
                 BOEING 747-400
                 <div class="plane-desc">Air France · .GLB Format</div>
@@ -98,43 +97,42 @@
         import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // --- AIRCRAFT CONFIGURATIONS ---
+        // --- 10X SCALED AIRCRAFT CONFIGURATIONS ---
         const FLEET = {
             '737': {
                 name: "BOEING 737 MAX",
                 filename: "plane.fbx",
                 type: "fbx",
-                scale: 0.05,            
-                clearance: 30, 
+                scale: 0.5,            // 10x larger
+                clearance: 300,        // 10x larger wheel drop
                 maxSpeed: 520,
                 stallSpeed: 140,
-                camDist: -220,  
-                camHeight: 60,  
+                camDist: -2200,        // 10x further back
+                camHeight: 600,        // 10x higher up
                 camLookUp: 15   
             },
-            // --- NEW 747 SETTINGS ---
             '747': {
                 name: "AIR FRANCE 747-400",
                 filename: "air_france_boeing_747-400.glb",
                 type: "glb",
-                scale: 1.0,             
-                clearance: 18, // Adjust this if the 747 wheels sink or float!
+                scale: 10.0,           // 10x larger   
+                clearance: 180,        // 10x larger wheel drop
                 maxSpeed: 540,
                 stallSpeed: 150,
-                camDist: -280, // Slightly closer than A380, further than 737
-                camHeight: 70,  
+                camDist: -2800,        // 10x further back
+                camHeight: 700,        // 10x higher up
                 camLookUp: 20   
             },
             'a380': {
                 name: "AIRBUS A380",
                 filename: "airbus-a380.glb",
                 type: "glb",
-                scale: 1.0,             
-                clearance: 15, 
+                scale: 10.0,           // 10x larger
+                clearance: 150,        // 10x larger wheel drop
                 maxSpeed: 560,
                 stallSpeed: 160,
-                camDist: -350,  
-                camHeight: 90,  
+                camDist: -3500,        // 10x further back
+                camHeight: 900,        // 10x higher up
                 camLookUp: 25   
             }
         };
@@ -190,18 +188,21 @@
             tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; return tex;
         }
 
-        const runway = new THREE.Mesh(new THREE.PlaneGeometry(300, 8000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 }));
+        // --- WIDENED & LENGTHENED RUNWAY ---
+        const runway = new THREE.Mesh(new THREE.PlaneGeometry(1500, 20000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 }));
         runway.rotation.x = -Math.PI / 2; 
         runway.position.y = GROUND_LEVEL + 1; 
         runway.receiveShadow = true; 
         scene.add(runway);
 
-        const terminal = new THREE.Mesh(new THREE.BoxGeometry(800, 100, 300), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
-        terminal.position.set(-600, GROUND_LEVEL + 50, 0); 
+        // Scaled up Terminal Building
+        const terminal = new THREE.Mesh(new THREE.BoxGeometry(2000, 300, 800), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
+        terminal.position.set(-1500, GROUND_LEVEL + 150, 0); 
         scene.add(terminal);
         
-        const tower = new THREE.Mesh(new THREE.BoxGeometry(50, 300, 50), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
-        tower.position.set(-300, GROUND_LEVEL + 150, 0); 
+        // Scaled up Control Tower
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(150, 800, 150), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
+        tower.position.set(-800, GROUND_LEVEL + 400, 0); 
         scene.add(tower);
 
         // --- FLIGHT VARIABLES & SPAWN PROTECTION ---
@@ -221,7 +222,7 @@
 
         // --- START MENU LOGIC ---
         document.getElementById('btn-737').addEventListener('click', () => spawnAircraft('737'));
-        document.getElementById('btn-747').addEventListener('click', () => spawnAircraft('747')); // LINKED 747 BUTTON
+        document.getElementById('btn-747').addEventListener('click', () => spawnAircraft('747')); 
         document.getElementById('btn-a380').addEventListener('click', () => spawnAircraft('a380'));
 
         function spawnAircraft(planeKey) {
@@ -357,9 +358,9 @@
                     }
                 }
 
-                if (Math.abs(airplane.position.x - terminal.position.x) < 400 && 
-                    Math.abs(airplane.position.z - terminal.position.z) < 150 && 
-                    airplane.position.y < (GROUND_LEVEL + 100)) {
+                if (Math.abs(airplane.position.x - terminal.position.x) < 1000 && 
+                    Math.abs(airplane.position.z - terminal.position.z) < 400 && 
+                    airplane.position.y < (GROUND_LEVEL + 300)) {
                     if (!spawnProtection) { 
                         crashed = true; 
                         document.getElementById('crash-screen').style.display = "flex"; 
