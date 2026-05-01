@@ -3,30 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>737 MAX Flight Simulator - Pro Edition</title>
+    <title>Flight Simulator - Fleet Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        
+        /* HOME SCREEN UI */
+        #home-screen {
+            position: absolute; inset: 0; background: linear-gradient(135deg, #051015 0%, #000000 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200;
+        }
+        #home-screen h1 { color: #00ff9d; font-size: 48px; text-shadow: 0 0 15px rgba(0,255,157,0.5); letter-spacing: 5px; }
+        .fleet-container { display: flex; gap: 30px; margin-top: 30px; }
+        .plane-card {
+            background: rgba(0, 255, 157, 0.05); border: 2px solid #00ff9d; color: white;
+            padding: 40px 60px; font-size: 28px; font-weight: bold; cursor: pointer;
+            border-radius: 8px; transition: all 0.3s ease; text-align: center;
+        }
+        .plane-card:hover { background: rgba(0, 255, 157, 0.2); transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,255,157,0.3); }
+        .plane-desc { font-size: 14px; color: #aaa; margin-top: 10px; font-weight: normal; }
+
+        /* IN-GAME UI */
         #ui {
-            position: absolute; top: 20px; left: 20px; color: #00ff9d;
+            display: none; position: absolute; top: 20px; left: 20px; color: #00ff9d;
             background: rgba(0, 15, 5, 0.7); padding: 20px; border: 1px solid #00ff9d;
-            border-radius: 4px; pointer-events: none; text-shadow: 0 0 5px #00ff9d;
+            border-radius: 4px; pointer-events: none; text-shadow: 0 0 5px #00ff9d; z-index: 10;
         }
         #loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: white; font-size: 24px; background: rgba(0,0,0,0.8);
-            padding: 20px 40px; border-radius: 10px; font-weight: bold; z-index: 100;
+            padding: 20px 40px; border-radius: 10px; font-weight: bold; z-index: 100; border: 1px solid #00ff9d;
         }
         #crash-screen {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 0, 0, 0.4); color: white; justify-content: center; align-items: center;
-            flex-direction: column; font-size: 64px; font-weight: bold; z-index: 50; text-shadow: 2px 2px 10px black;
+            display: none; position: absolute; inset: 0; background: rgba(255, 0, 0, 0.5); color: white; 
+            justify-content: center; align-items: center; flex-direction: column; 
+            font-size: 64px; font-weight: bold; z-index: 150; text-shadow: 2px 2px 10px black;
         }
-        .btn {
-            margin-top: 20px; padding: 15px 30px; font-size: 24px; cursor: pointer;
-            background: white; color: red; border: none; font-weight: bold; border-radius: 5px;
-        }
+        .btn { margin-top: 20px; padding: 15px 30px; font-size: 24px; cursor: pointer; background: white; color: red; border: none; font-weight: bold; border-radius: 5px; }
     </style>
-    <!-- Import Maps for Three.js -->
     <script type="importmap">
         {
             "imports": {
@@ -38,36 +51,71 @@
 </head>
 <body>
 
-    <div id="loading">INITIALIZING WORLD & DOWNLOADING plane.fbx...</div>
+    <!-- HOME SCREEN -->
+    <div id="home-screen">
+        <h1>SELECT AIRCRAFT</h1>
+        <div class="fleet-container">
+            <div class="plane-card" id="btn-737">
+                BOEING 737 MAX
+                <div class="plane-desc">Narrow-body · .FBX Format</div>
+            </div>
+            <div class="plane-card" id="btn-a380">
+                AIRBUS A380
+                <div class="plane-desc">Superjumbo · .GLB Format</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading">INITIALIZING SYSTEMS...</div>
     
     <div id="crash-screen">
         <div>AIRCRAFT DESTROYED</div>
-        <div style="font-size: 24px; margin-top: 10px;" id="crash-reason">You hit the ground too hard!</div>
+        <div style="font-size: 24px; margin-top: 10px;" id="crash-reason"></div>
         <button class="btn" onclick="location.reload()">RESTART SIMULATION</button>
     </div>
 
     <div id="ui">
-        <h2 style="margin-top:0;">SKYBORNE OS</h2>
+        <h2 style="margin-top:0;" id="plane-name-ui">SKYBORNE OS</h2>
         <div>TIME: <span id="time-display">12:00</span></div>
         <hr style="border-color: #00ff9d;">
         <div>AIRSPEED: <span id="speed">0</span> KTS</div>
         <div>ALTITUDE: <span id="alt">0</span> FT</div>
         <div>THROTTLE: <span id="throttle">0</span>%</div>
         <div>GEAR: <span id="gear">DOWN</span></div>
-        <br>
-        <div><b>CONTROLS:</b></div>
-        <div>W / S : Pitch</div>
-        <div>A / D : Roll</div>
-        <div>Q / E : Yaw (Rudder)</div>
-        <div>Shift / Ctrl : Throttle</div>
-        <div>G : Toggle Landing Gear</div>
     </div>
 
     <script type="module">
         import * as THREE from 'three';
+        // Import BOTH loaders now
         import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // --- 1. CORE SETUP ---
+        // --- AIRCRAFT CONFIGURATIONS ---
+        // You can tweak the scale and height for each plane independently here!
+        const FLEET = {
+            '737': {
+                name: "BOEING 737 MAX",
+                filename: "plane.fbx",
+                type: "fbx",
+                scale: 0.05,            // Adjust if plane is too big/small
+                heightOffset: 30,       // Adjust so wheels touch the ground
+                maxSpeed: 520,
+                stallSpeed: 140
+            },
+            'a380': {
+                name: "AIRBUS A380",
+                filename: "airbus-a380.glb",
+                type: "glb",
+                scale: 1.0,             // GLB files usually use scale 1.0. Change to 5 or 10 if it's too small.
+                heightOffset: 15,       // Tweak this until the A380's massive wheels sit on the asphalt
+                maxSpeed: 560,
+                stallSpeed: 160
+            }
+        };
+
+        let currentPlaneData = null;
+
+        // --- CORE SETUP ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 150000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -75,12 +123,9 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. ENVIRONMENT & DAY/NIGHT CYCLE ---
-        let timeOfDay = Math.PI / 2; // Starts at noon
-        
+        let timeOfDay = Math.PI / 2;
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
         scene.add(hemiLight);
-
         const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
         sunLight.castShadow = true;
         sunLight.shadow.camera.left = -5000; sunLight.shadow.camera.right = 5000;
@@ -88,170 +133,127 @@
         sunLight.shadow.camera.far = 20000;
         scene.add(sunLight);
 
-        // --- 3. PROCEDURAL AIRPORT GENERATION ---
-        // A. Massive Grassy Terrain
+        // --- ENVIRONMENT ---
         const groundGeo = new THREE.PlaneGeometry(100000, 100000);
         const groundMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, roughness: 0.9 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+        ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-        // B. Procedural Runway Texture (Canvas)
         function createRunwayTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024; canvas.height = 4096;
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 4096;
             const ctx = canvas.getContext('2d');
-            
-            // Asphalt
             ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, 1024, 4096);
-            
             ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff';
-            
-            // Center Dashed Line
             ctx.lineWidth = 15; ctx.setLineDash([100, 100]);
             ctx.beginPath(); ctx.moveTo(512, 0); ctx.lineTo(512, 4096); ctx.stroke();
-            
-            // Solid Edge Lines
             ctx.setLineDash([]); ctx.lineWidth = 20;
             ctx.beginPath(); ctx.moveTo(50, 0); ctx.lineTo(50, 4096); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(974, 0); ctx.lineTo(974, 4096); ctx.stroke();
-            
-            // Touchdown zones & Runway Numbers
-            ctx.font = 'bold 200px Arial'; ctx.textAlign = 'center';
-            ctx.fillText("09", 512, 400);
+            ctx.font = 'bold 200px Arial'; ctx.textAlign = 'center'; ctx.fillText("09", 512, 400);
             for(let i=0; i<4; i++) ctx.fillRect(200 + (i*50), 500, 20, 300);
             for(let i=0; i<4; i++) ctx.fillRect(650 + (i*50), 500, 20, 300);
-
-            ctx.save(); ctx.translate(512, 3696); ctx.rotate(Math.PI);
-            ctx.fillText("27", 0, 0);
+            ctx.save(); ctx.translate(512, 3696); ctx.rotate(Math.PI); ctx.fillText("27", 0, 0);
             for(let i=0; i<4; i++) ctx.fillRect(-312 + (i*50), 100, 20, 300);
-            for(let i=0; i<4; i++) ctx.fillRect(138 + (i*50), 100, 20, 300);
-            ctx.restore();
-
-            const tex = new THREE.CanvasTexture(canvas);
-            tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
-            return tex;
+            for(let i=0; i<4; i++) ctx.fillRect(138 + (i*50), 100, 20, 300); ctx.restore();
+            const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; return tex;
         }
 
-        // Create Runway
-        const runwayGeo = new THREE.PlaneGeometry(300, 8000);
-        const runwayMat = new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 });
-        const runway = new THREE.Mesh(runwayGeo, runwayMat);
-        runway.rotation.x = -Math.PI / 2;
-        runway.position.y = 1; // Slightly above grass to prevent glitching
-        runway.receiveShadow = true;
-        scene.add(runway);
+        const runway = new THREE.Mesh(new THREE.PlaneGeometry(300, 8000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.7 }));
+        runway.rotation.x = -Math.PI / 2; runway.position.y = 1; runway.receiveShadow = true; scene.add(runway);
 
-        // C. Terminal & Control Tower
-        const concreteMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.8 });
-        const glassMat = new THREE.MeshStandardMaterial({ color: 0x112233, roughness: 0.1, metalness: 0.8 });
-        
-        // Main Terminal
-        const terminal = new THREE.Mesh(new THREE.BoxGeometry(800, 100, 300), concreteMat);
-        terminal.position.set(-600, 50, 0);
-        terminal.castShadow = true; terminal.receiveShadow = true;
-        scene.add(terminal);
+        const terminal = new THREE.Mesh(new THREE.BoxGeometry(800, 100, 300), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
+        terminal.position.set(-600, 50, 0); scene.add(terminal);
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(50, 300, 50), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
+        tower.position.set(-300, 150, 0); scene.add(tower);
 
-        // Control Tower
-        const towerBase = new THREE.Mesh(new THREE.BoxGeometry(50, 300, 50), concreteMat);
-        towerBase.position.set(-300, 150, 0);
-        towerBase.castShadow = true;
-        scene.add(towerBase);
-        
-        const towerCab = new THREE.Mesh(new THREE.BoxGeometry(80, 40, 80), glassMat);
-        towerCab.position.set(-300, 320, 0);
-        scene.add(towerCab);
-
-        // --- 4. FLIGHT VARIABLES ---
+        // --- FLIGHT VARIABLES ---
         let airplane = null;
-        let speed = 0, throttle = 0, pitch = 0, roll = 0;
-        let gearDown = true;
-        let crashed = false;
-        
-        const PHYSICS = {
-            maxSpeed: 520, stallSpeed: 140, acceleration: 25, 
-            liftFactor: 0.05, gravity: 9.81, airplaneHeightOffset: 12 
-        };
-
+        let speed = 0, throttle = 0;
+        let gearDown = true, crashed = false;
+        let PHYSICS = { acceleration: 25, liftFactor: 0.05, gravity: 9.81 }; // Dynamically populated
         const keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, control: false };
 
         window.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = true;
-            if (key === 'g' && !crashed && airplane.position.y > 50) gearDown = !gearDown;
+            const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = true;
+            if (key === 'g' && !crashed && airplane && airplane.position.y > 50) gearDown = !gearDown;
         });
-        window.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = false;
-        });
+        window.addEventListener('keyup', (e) => { const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = false; });
 
-        // --- 5. LOAD AIRCRAFT ---
-        const loader = new FBXLoader();
-        loader.load('./plane.fbx', (object) => {
-            airplane = object;
-            airplane.scale.set(0.05, 0.05, 0.05); 
+        // --- START MENU LOGIC ---
+        document.getElementById('btn-737').addEventListener('click', () => spawnAircraft('737'));
+        document.getElementById('btn-a380').addEventListener('click', () => spawnAircraft('a380'));
+
+        function spawnAircraft(planeKey) {
+            document.getElementById('home-screen').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
             
-            // Spawn EXACTLY on the start of runway "09"
+            currentPlaneData = FLEET[planeKey];
+            document.getElementById('plane-name-ui').innerText = currentPlaneData.name;
+            
+            // Set specific physics based on the plane chosen
+            PHYSICS.maxSpeed = currentPlaneData.maxSpeed;
+            PHYSICS.stallSpeed = currentPlaneData.stallSpeed;
+            PHYSICS.airplaneHeightOffset = currentPlaneData.heightOffset;
+
+            if (currentPlaneData.type === 'fbx') {
+                const loader = new FBXLoader();
+                loader.load('./' + currentPlaneData.filename, onModelLoaded, onProgress, onError);
+            } else if (currentPlaneData.type === 'glb') {
+                const loader = new GLTFLoader();
+                loader.load('./' + currentPlaneData.filename, (gltf) => onModelLoaded(gltf.scene), onProgress, onError);
+            }
+        }
+
+        function onModelLoaded(model) {
+            airplane = model;
+            airplane.scale.setScalar(currentPlaneData.scale);
             airplane.position.set(0, PHYSICS.airplaneHeightOffset, 3500); 
-            airplane.rotation.set(0, Math.PI, 0); // Face down the runway
+            airplane.rotation.set(0, Math.PI, 0); 
             
             airplane.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }});
             scene.add(airplane);
+            
             document.getElementById('loading').style.display = 'none';
-        }, 
-        (xhr) => { document.getElementById('loading').innerText = `DOWNLOADING MODEL: ${Math.round(xhr.loaded / xhr.total * 100)}%`; }, 
-        (error) => { document.getElementById('loading').innerText = "ERROR: Could not find plane.fbx"; }
-        );
+            document.getElementById('ui').style.display = 'block'; // Show HUD
+        }
 
-        // --- 6. GAME LOOP ---
+        function onProgress(xhr) { document.getElementById('loading').innerText = `DOWNLOADING ${currentPlaneData.name}: ${Math.round(xhr.loaded / xhr.total * 100)}%`; }
+        function onError(err) { document.getElementById('loading').innerText = `ERROR: Could not find ${currentPlaneData.filename}`; console.error(err); }
+
+        // --- GAME LOOP ---
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-            const delta = Math.min(clock.getDelta(), 0.1); // Prevent massive jumps on lag
+            const delta = Math.min(clock.getDelta(), 0.1);
 
-            // Day/Night Cycle Logic
             timeOfDay += delta * 0.02; 
             const sunDist = 15000;
             sunLight.position.set(Math.cos(timeOfDay) * sunDist, Math.sin(timeOfDay) * sunDist, 0);
             
-            // Sky colors based on sun height
             const sunHeight = Math.sin(timeOfDay);
-            if (sunHeight > 0.2) {
-                scene.background = new THREE.Color(0x5ca0e8); // Day
-                sunLight.intensity = 1.2; hemiLight.intensity = 0.4;
-            } else if (sunHeight > 0) {
-                scene.background = new THREE.Color(0xff7b54); // Sunset
-                sunLight.intensity = 0.8;
-            } else {
-                scene.background = new THREE.Color(0x050510); // Night
-                sunLight.intensity = 0; hemiLight.intensity = 0.1; // Moonlight
-            }
+            if (sunHeight > 0.2) { scene.background = new THREE.Color(0x5ca0e8); sunLight.intensity = 1.2; hemiLight.intensity = 0.4; } 
+            else if (sunHeight > 0) { scene.background = new THREE.Color(0xff7b54); sunLight.intensity = 0.8; } 
+            else { scene.background = new THREE.Color(0x050510); sunLight.intensity = 0; hemiLight.intensity = 0.1; }
             
-            // Format Clock string
             let hours = Math.floor((timeOfDay / (Math.PI * 2)) * 24 + 6) % 24;
             let mins = Math.floor(((timeOfDay / (Math.PI * 2)) * 24 * 60) % 60);
             document.getElementById('time-display').innerText = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 
             if (airplane && !crashed) {
-                // Throttle
                 if (keys.shift && throttle < 100) throttle += 15 * delta;
                 if (keys.control && throttle > 0) throttle -= 20 * delta;
                 
-                // Speed & Drag
                 const targetSpeed = (throttle / 100) * PHYSICS.maxSpeed;
-                const drag = gearDown ? 0.8 : 1.0; // Gear slows you down
+                const drag = gearDown ? 0.8 : 1.0; 
                 speed += (targetSpeed * drag - speed) * 0.2 * delta;
 
-                // Flight Dynamics
                 const isFlying = speed > PHYSICS.stallSpeed; 
                 const turnAgility = isFlying ? 1.2 * delta : 0;
                 const pitchAgility = isFlying ? 0.8 * delta : 0;
                 const groundSteer = (!isFlying && airplane.position.y <= PHYSICS.airplaneHeightOffset + 1) ? 0.5 * delta : 0;
 
-                // Input mapping
                 if (keys.w) airplane.rotateX(-pitchAgility);
                 if (keys.s) airplane.rotateX(pitchAgility);
                 if (keys.a) { airplane.rotateZ(turnAgility); if(!isFlying) airplane.rotateY(groundSteer); }
@@ -259,31 +261,21 @@
                 if (keys.q && isFlying) airplane.rotateY(turnAgility * 0.5);
                 if (keys.e && isFlying) airplane.rotateY(-turnAgility * 0.5);
 
-                // Auto-leveling Roll (Stability)
                 airplane.rotation.z -= airplane.rotation.z * 1.0 * delta;
 
-                // Gravity & Lift
                 let verticalVelocity = 0;
                 if (isFlying) {
-                    // Lift pulls you up based on speed and pitch
                     const lift = (speed - PHYSICS.stallSpeed) * PHYSICS.liftFactor;
                     verticalVelocity = lift - PHYSICS.gravity;
-                } else {
-                    verticalVelocity = -PHYSICS.gravity * 3; // Fall fast if stalled
-                }
+                } else verticalVelocity = -PHYSICS.gravity * 3; 
                 
-                // Move Forward
                 airplane.translateZ(speed * delta);
-                // Apply Gravity/Lift
                 airplane.position.y += verticalVelocity * delta;
 
-                // --- COLLISIONS ---
-                // Ground Collision
                 const currentHeight = airplane.position.y;
                 if (currentHeight <= PHYSICS.airplaneHeightOffset) {
-                    airplane.position.y = PHYSICS.airplaneHeightOffset; // Keep wheels on ground
+                    airplane.position.y = PHYSICS.airplaneHeightOffset; 
                     
-                    // Crash conditions: Pitching down too hard, rolling too much, or landing with no gear
                     const pitchRad = airplane.rotation.x;
                     const rollRad = Math.abs(airplane.rotation.z);
                     
@@ -294,43 +286,28 @@
                         else if (pitchRad < -0.15) document.getElementById('crash-reason').innerText = "NOSE DIVE. PITCHED TOO FAR DOWN.";
                         else document.getElementById('crash-reason').innerText = "HARD LANDING. VERTICAL SPEED TOO HIGH.";
                     }
-                    
-                    // Level out pitch automatically if safely on ground
                     airplane.rotation.x -= airplane.rotation.x * 5 * delta;
                 }
 
-                // Building Collision (Simple bounding box check for Terminal and Tower)
-                if (Math.abs(airplane.position.x - terminal.position.x) < 400 && 
-                    Math.abs(airplane.position.z - terminal.position.z) < 150 && 
-                    airplane.position.y < 100) {
-                    crashed = true;
-                    document.getElementById('crash-screen').style.display = "flex";
-                    document.getElementById('crash-reason').innerText = "COLLISION WITH TERMINAL BUILDING!";
+                if (Math.abs(airplane.position.x - terminal.position.x) < 400 && Math.abs(airplane.position.z - terminal.position.z) < 150 && airplane.position.y < 100) {
+                    crashed = true; document.getElementById('crash-screen').style.display = "flex"; document.getElementById('crash-reason').innerText = "COLLISION WITH TERMINAL BUILDING!";
                 }
 
-                // Camera Follow
                 const relativeCameraOffset = new THREE.Vector3(0, 40, -150);
                 const cameraOffset = relativeCameraOffset.applyMatrix4(airplane.matrixWorld);
                 camera.position.lerp(cameraOffset, 0.1);
                 camera.lookAt(airplane.position.x, airplane.position.y + 20, airplane.position.z);
 
-                // UI Updates
                 document.getElementById('speed').innerText = Math.round(speed);
-                document.getElementById('alt').innerText = Math.max(0, Math.round((airplane.position.y - PHYSICS.airplaneHeightOffset) * 3.28)); // Convert to ft
+                document.getElementById('alt').innerText = Math.max(0, Math.round((airplane.position.y - PHYSICS.airplaneHeightOffset) * 3.28)); 
                 document.getElementById('throttle').innerText = Math.round(throttle);
                 document.getElementById('gear').innerText = gearDown ? "DOWN" : "UP";
                 document.getElementById('gear').style.color = gearDown ? "#00ff9d" : "#ffaa00";
             }
-
             renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
         animate();
     </script>
 </body>
