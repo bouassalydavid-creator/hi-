@@ -90,24 +90,25 @@
         // --- 15X MULTIPLIER FOR MASSIVE SCALE ---
         const MULT = 15;
 
+        // --- CAMERAS BROUGHT MUCH CLOSER TO SHOW OFF TRUE SCALE ---
         const FLEET = {
             '737': {
                 name: "BOEING 737 MAX", filename: "plane.fbx", type: "fbx",
                 scale: 0.05 * MULT, clearance: 30 * MULT, 
                 maxSpeed: 520 * MULT, stallSpeed: 140 * MULT,
-                camDist: -1500, camHeight: 400, camLookUp: 100   
+                camDist: -400, camHeight: 150, camLookUp: 50   
             },
             '747': {
                 name: "AIR FRANCE 747-400", filename: "air_france_boeing_747-400.glb", type: "glb",
                 scale: 1.0 * MULT, clearance: 18 * MULT, 
                 maxSpeed: 540 * MULT, stallSpeed: 150 * MULT,
-                camDist: -2500, camHeight: 600, camLookUp: 150   
+                camDist: -600, camHeight: 200, camLookUp: 80   
             },
             'a380': {
                 name: "AIRBUS A380", filename: "airbus-a380.glb", type: "glb",
                 scale: 1.0 * MULT, clearance: 15 * MULT, 
                 maxSpeed: 560 * MULT, stallSpeed: 160 * MULT,
-                camDist: -3000, camHeight: 800, camLookUp: 200   
+                camDist: -700, camHeight: 250, camLookUp: 100   
             }
         };
 
@@ -115,7 +116,7 @@
 
         // --- CORE SETUP ---
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x5ca0e8, 0.000008); // Thick atmosphere fog
+        scene.fog = new THREE.FogExp2(0x5ca0e8, 0.000008); 
         
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 10, 400000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -136,30 +137,24 @@
         // --- TOPOGRAPHICAL ENVIRONMENT ---
         const GROUND_LEVEL = -500;
 
-        // Mathematical height generation for hills
         function getTerrainHeight(x, z) {
             const distToRunway = Math.abs(x);
-            // Runway strip is perfectly flat
             if (distToRunway < 3000) return GROUND_LEVEL; 
             
-            // Generate rolling hills
             let height = Math.sin(x * 0.00005) * Math.cos(z * 0.00005) * 4000;
-            height += Math.sin(x * 0.0002) * Math.cos(z * 0.0002) * 1500; // Adding detail
+            height += Math.sin(x * 0.0002) * Math.cos(z * 0.0002) * 1500; 
             
-            // Smoothly blend hills into the flat runway
             let blend = Math.min((distToRunway - 3000) / 4000, 1.0);
             return GROUND_LEVEL + (height * blend);
         }
 
-        // 1. Generate Massive Hilly Terrain
         const groundGeo = new THREE.PlaneGeometry(300000, 300000, 150, 150);
         const groundMat = new THREE.MeshStandardMaterial({ color: 0x1f3d14, roughness: 1.0 });
         
-        // Manipulate vertices to create hills
         const pos = groundGeo.attributes.position;
         for (let i = 0; i < pos.count; i++) {
             let vx = pos.getX(i);
-            let vy = pos.getY(i); // This becomes Z after rotation
+            let vy = pos.getY(i); 
             let terrainZ = getTerrainHeight(vx, vy) - GROUND_LEVEL;
             pos.setZ(i, terrainZ);
         }
@@ -171,7 +166,6 @@
         ground.receiveShadow = true; 
         scene.add(ground);
 
-        // 2. Generate 3000 Trees (Instanced Rendering for Performance)
         const treeCount = 3000;
         const trunkGeo = new THREE.CylinderGeometry(40, 60, 400, 5);
         const trunkMat = new THREE.MeshStandardMaterial({color: 0x3d2817});
@@ -187,7 +181,6 @@
             let tx = (Math.random() - 0.5) * 200000;
             let tz = (Math.random() - 0.5) * 200000;
             
-            // Don't plant trees on the runway or in the city
             if (Math.abs(tx) > 4000 && tz > -30000) { 
                 let ty = getTerrainHeight(tx, tz);
                 
@@ -203,7 +196,6 @@
         }
         scene.add(trunks); scene.add(leaves);
 
-        // 3. Gigantic Runway
         function createRunwayTexture() {
             const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 4096;
             const ctx = canvas.getContext('2d');
@@ -230,23 +222,19 @@
         runway.receiveShadow = true; 
         scene.add(runway);
 
-        // 4. Procedural Cityscape & Terminal
         const cityGroup = new THREE.Group();
         const buildingGeo = new THREE.BoxGeometry(1, 1, 1);
         
-        // Massive Terminal
         const terminal = new THREE.Mesh(buildingGeo, new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
         terminal.scale.set(4000, 600, 1500);
         terminal.position.set(-4500, GROUND_LEVEL + 300, 0);
         cityGroup.add(terminal);
 
-        // Control Tower
         const tower = new THREE.Mesh(buildingGeo, new THREE.MeshStandardMaterial({ color: 0x888888 }));
         tower.scale.set(300, 1500, 300);
         tower.position.set(-2000, GROUND_LEVEL + 750, 0);
         cityGroup.add(tower);
 
-        // 100 Skyscrapers
         for(let i = 0; i < 100; i++) {
             let mat = new THREE.MeshStandardMaterial({
                 color: Math.random() > 0.5 ? 0x445566 : 0x112233, 
@@ -257,7 +245,6 @@
             let h = 1000 + Math.random() * 4000;
             let d = 400 + Math.random() * 800;
             mesh.scale.set(w, h, d);
-            // Scatter behind terminal
             mesh.position.set(-8000 - Math.random() * 15000, GROUND_LEVEL + h/2, (Math.random() - 0.5) * 20000);
             cityGroup.add(mesh);
         }
@@ -268,7 +255,6 @@
         let speed = 0, throttle = 0;
         let gearDown = true, crashed = false, spawnProtection = false; 
         
-        // Gravity scaled up by 15x to match the huge world
         let PHYSICS = { acceleration: 25 * MULT, liftFactor: 0.05, gravity: 9.81 * MULT }; 
         const keys = { w: false, a: false, s: false, d: false, q: false, e: false, shift: false, control: false };
 
@@ -331,7 +317,6 @@
             requestAnimationFrame(animate);
             const delta = Math.min(clock.getDelta(), 0.1);
 
-            // Day/Night and Fog integration
             timeOfDay += delta * 0.02; 
             const sunDist = 50000;
             sunLight.position.set(Math.cos(timeOfDay) * sunDist, Math.sin(timeOfDay) * sunDist, 0);
@@ -394,7 +379,6 @@
                 airplane.translateZ(speed * delta);
                 airplane.position.y += verticalVelocity * delta;
 
-                // --- TOPOGRAPHICAL CRASH DETECTION ---
                 if (airplane.position.y <= collisionFloor) {
                     airplane.position.y = collisionFloor; 
                     
@@ -402,7 +386,6 @@
                     const rollRad = Math.abs(airplane.rotation.z);
                     
                     if (!spawnProtection) {
-                        // Divided by MULT because speed is 15x higher in the engine now
                         if (verticalVelocity < (-20 * MULT) || pitchRad < -0.15 || rollRad > 0.3 || (!gearDown && (speed/MULT) > 50)) {
                             crashed = true;
                             document.getElementById('crash-screen').style.display = "flex";
@@ -416,7 +399,6 @@
                     if (!crashed) airplane.rotation.x -= airplane.rotation.x * 5 * delta;
                 }
 
-                // CITY COLLISION ZONE
                 if (airplane.position.x < -2000 && airplane.position.x > -23000 && 
                     airplane.position.z > -10000 && airplane.position.z < 10000 && 
                     airplane.position.y < (GROUND_LEVEL + 5000)) {
@@ -433,7 +415,6 @@
                 camera.position.lerp(targetCamPos, 0.1);
                 camera.lookAt(airplane.position.x, airplane.position.y + currentPlaneData.camLookUp, airplane.position.z);
 
-                // Divide by MULT so the UI shows realistic 1x numbers to the player
                 document.getElementById('speed').innerText = Math.round(speed / MULT);
                 const displayAlt = Math.max(0, Math.round(((airplane.position.y - collisionFloor) / MULT) * 3.28));
                 document.getElementById('alt').innerText = displayAlt; 
