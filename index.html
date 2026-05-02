@@ -8,24 +8,24 @@
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
         
         #home-screen {
-            position: absolute; inset: 0; background: linear-gradient(135deg, #150505 0%, #000000 100%);
+            position: absolute; inset: 0; background: linear-gradient(135deg, #10001a 0%, #000000 100%);
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200;
         }
-        /* CHANGED TO ORANGE TO PROVE CODE UPDATED */
-        #home-screen h1 { color: #ff5500; font-size: 48px; text-shadow: 0 0 15px rgba(255,85,0,0.5); letter-spacing: 5px; text-align: center; }
+        /* UI CHANGED TO NEON PURPLE TO VERIFY CACHE REFRESH */
+        #home-screen h1 { color: #b829ff; font-size: 48px; text-shadow: 0 0 15px rgba(184,41,255,0.5); letter-spacing: 5px; text-align: center; }
         .fleet-container { display: flex; gap: 20px; margin-top: 30px; flex-wrap: wrap; justify-content: center; max-width: 1000px; }
         .plane-card {
-            background: rgba(255, 85, 0, 0.05); border: 2px solid #ff5500; color: white;
+            background: rgba(184, 41, 255, 0.05); border: 2px solid #b829ff; color: white;
             padding: 30px 40px; font-size: 24px; font-weight: bold; cursor: pointer;
             border-radius: 8px; transition: all 0.3s ease; text-align: center; min-width: 200px;
         }
-        .plane-card:hover { background: rgba(255, 85, 0, 0.2); transform: translateY(-5px); box-shadow: 0 10px 20px rgba(255,85,0,0.3); }
+        .plane-card:hover { background: rgba(184, 41, 255, 0.2); transform: translateY(-5px); box-shadow: 0 10px 20px rgba(184,41,255,0.3); }
         .plane-desc { font-size: 14px; color: #aaa; margin-top: 10px; font-weight: normal; }
 
         #ui {
-            display: none; position: absolute; top: 20px; left: 20px; color: #ff5500;
-            background: rgba(15, 5, 0, 0.7); padding: 20px; border: 1px solid #ff5500;
-            border-radius: 4px; pointer-events: none; text-shadow: 0 0 5px #ff5500; z-index: 10;
+            display: none; position: absolute; top: 20px; left: 20px; color: #b829ff;
+            background: rgba(10, 0, 15, 0.7); padding: 20px; border: 1px solid #b829ff;
+            border-radius: 4px; pointer-events: none; text-shadow: 0 0 5px #b829ff; z-index: 10;
         }
         
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
@@ -34,7 +34,7 @@
         #loading {
             display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: white; font-size: 24px; background: rgba(0,0,0,0.8);
-            padding: 20px 40px; border-radius: 10px; font-weight: bold; z-index: 100; border: 1px solid #ff5500; text-align: center;
+            padding: 20px 40px; border-radius: 10px; font-weight: bold; z-index: 100; border: 1px solid #b829ff; text-align: center;
         }
 
         #crash-screen {
@@ -56,7 +56,7 @@
 
     <div id="home-screen">
         <h1>TITAN FLIGHT SIMULATOR</h1>
-        <div style="color:#aaa; margin-bottom: 20px;">SYSTEM: HARD REFRESH REQUIRED IF THIS TEXT IS NOT ORANGE</div>
+        <div style="color:#aaa; margin-bottom: 20px;">v3.0 - PURPLE UI means the code successfully updated!</div>
         <div class="fleet-container">
             <div class="plane-card" id="btn-737">BOEING 737 MAX<div class="plane-desc">Narrow-body</div></div>
             <div class="plane-card" id="btn-747">BOEING 747-400<div class="plane-desc">Air France</div></div>
@@ -76,7 +76,7 @@
         <h2 style="margin-top:0;" id="plane-name-ui">SKYBORNE OS</h2>
         <div>TIME: <span id="time-display">12:00</span></div>
         <div id="status">⚠ SPAWN PROTECTION ACTIVE ⚠</div>
-        <hr style="border-color: #ff5500;">
+        <hr style="border-color: #b829ff;">
         <div>AIRSPEED: <span id="speed">0</span> KTS</div>
         <div>ALTITUDE: <span id="alt">0</span> FT</div>
         <div>THROTTLE: <span id="throttle">0</span>%</div>
@@ -90,28 +90,34 @@
 
         const MULT = 50;
 
-        // --- FLEET SETTINGS (Cameras pushed extremely close to emphasize 50x scale) ---
+        // --- HEAVILY REVISED FLEET SETTINGS ---
         const FLEET = {
             '737': {
                 name: "BOEING 737 MAX", filename: "plane.fbx", type: "fbx",
-                scale: 0.05 * MULT, clearance: 15 * MULT, 
+                scale: 0.05 * MULT, 
+                clearance: 3 * MULT,    // Slammed to the floor
                 rotOffset: 0, 
+                invertControls: 1,      // Normal controls
                 maxSpeed: 520 * MULT, stallSpeed: 140 * MULT,
                 camDist: -600, camHeight: 150, camLookUp: 80   
             },
             '747': {
                 name: "AIR FRANCE 747-400", filename: "air_france_boeing_747-400.glb", type: "glb",
-                scale: 1.0 * MULT, clearance: 10 * MULT, 
+                scale: 5.0 * MULT,      // 5x LARGER THAN BEFORE!
+                clearance: 2 * MULT,    // Slammed to the floor
                 rotOffset: 0, 
+                invertControls: 1,      // Normal controls
                 maxSpeed: 540 * MULT, stallSpeed: 150 * MULT,
-                camDist: -800, camHeight: 200, camLookUp: 100   
+                camDist: -2000, camHeight: 400, camLookUp: 150   
             },
             'a380': {
                 name: "AIRBUS A380", filename: "airbus-a380.glb", type: "glb",
-                scale: 1.0 * MULT, clearance: 8 * MULT, 
-                rotOffset: Math.PI, // 180 DEGREE FIX FOR A380
+                scale: 5.0 * MULT,      // 5x LARGER THAN BEFORE!
+                clearance: 1.5 * MULT,  // Slammed to the floor
+                rotOffset: Math.PI,     // Keeps it visually facing forward
+                invertControls: -1,     // FIXES REVERSED PITCH AND ROLL!
                 maxSpeed: 560 * MULT, stallSpeed: 160 * MULT,
-                camDist: -1000, camHeight: 250, camLookUp: 120   
+                camDist: -2200, camHeight: 450, camLookUp: 180   
             }
         };
 
@@ -336,8 +342,6 @@
                 speed += (targetSpeed * drag - speed) * 0.2 * delta;
 
                 const isFlying = speed > PHYSICS.stallSpeed; 
-                
-                // --- INCREASED TURNING SPEED ---
                 const turnAgility = isFlying ? 2.5 * delta : 0; 
                 const pitchAgility = isFlying ? 1.5 * delta : 0;
                 
@@ -345,27 +349,29 @@
                 const isTouchingGround = airplane.position.y <= (currentGroundHeight + PHYSICS.clearance + 10);
                 const groundSteer = (!isFlying && isTouchingGround) ? 1.5 * delta : 0;
 
-                if (keys.w) airplane.rotateX(-pitchAgility);
-                if (keys.s) airplane.rotateX(pitchAgility);
+                // --- INVERTIBLE CONTROLS APPLIED HERE ---
+                const inv = currentPlaneData.invertControls;
+
+                if (keys.w) airplane.rotateX(-pitchAgility * inv);
+                if (keys.s) airplane.rotateX(pitchAgility * inv);
                 
                 if (keys.a) { 
-                    if (isFlying) airplane.rotateZ(turnAgility); 
+                    if (isFlying) airplane.rotateZ(turnAgility * inv); 
                     if (isTouchingGround) airplane.rotateY(groundSteer); 
                 }
                 if (keys.d) { 
-                    if (isFlying) airplane.rotateZ(-turnAgility); 
+                    if (isFlying) airplane.rotateZ(-turnAgility * inv); 
                     if (isTouchingGround) airplane.rotateY(-groundSteer); 
                 }
                 
                 if (keys.q && isFlying) airplane.rotateY(turnAgility * 0.5);
                 if (keys.e && isFlying) airplane.rotateY(-turnAgility * 0.5);
 
-                // --- AGGRESSIVE BANK-TO-TURN LOGIC ---
                 if (isFlying) {
-                    airplane.rotateY(airplane.rotation.z * 1.5 * delta); // Plane actively turns when rolled
+                    airplane.rotateY((airplane.rotation.z * inv) * 1.5 * delta); 
                 }
 
-                airplane.rotation.z -= airplane.rotation.z * 1.5 * delta; // Auto-level
+                airplane.rotation.z -= airplane.rotation.z * 1.5 * delta;
 
                 const collisionFloor = currentGroundHeight + PHYSICS.clearance;
                 let verticalVelocity = 0;
@@ -386,7 +392,7 @@
 
                 if (airplane.position.y <= collisionFloor) {
                     airplane.position.y = collisionFloor; 
-                    const pitchRad = airplane.rotation.x;
+                    const pitchRad = airplane.rotation.x * inv;
                     const rollRad = Math.abs(airplane.rotation.z);
                     
                     if (!spawnProtection) {
@@ -418,7 +424,7 @@
                 document.getElementById('alt').innerText = displayAlt; 
                 document.getElementById('throttle').innerText = Math.round(throttle);
                 document.getElementById('gear').innerText = gearDown ? "DOWN" : "UP";
-                document.getElementById('gear').style.color = gearDown ? "#ff5500" : "#ffaa00";
+                document.getElementById('gear').style.color = gearDown ? "#b829ff" : "#ffaa00";
             }
             renderer.render(scene, camera);
         }
