@@ -36,7 +36,6 @@
             padding: 20px 40px; border-radius: 10px; font-weight: bold; z-index: 100; border: 1px solid #00ff9d; text-align: center;
         }
 
-        /* NEW BLACK CRASH SCREEN */
         #crash-screen {
             display: none; position: absolute; inset: 0; background: #000000; color: white; 
             justify-content: center; align-items: center; flex-direction: column; 
@@ -90,23 +89,29 @@
 
         const MULT = 50;
 
-        // Camera pulled in tight to emphasize massive plane size
+        // --- FLEET SETTINGS ---
         const FLEET = {
             '737': {
                 name: "BOEING 737 MAX", filename: "plane.fbx", type: "fbx",
-                scale: 0.05 * MULT, clearance: 30 * MULT, 
+                scale: 0.05 * MULT, 
+                clearance: 20 * MULT, // <--- Lower this number if the 737 is hovering!
+                rotOffset: 0,         // Faces normal
                 maxSpeed: 520 * MULT, stallSpeed: 140 * MULT,
                 camDist: -800, camHeight: 200, camLookUp: 80   
             },
             '747': {
                 name: "AIR FRANCE 747-400", filename: "air_france_boeing_747-400.glb", type: "glb",
-                scale: 1.0 * MULT, clearance: 18 * MULT, 
+                scale: 1.0 * MULT, 
+                clearance: 14 * MULT, // <--- Lower this number if the 747 is hovering!
+                rotOffset: 0,         // Faces normal
                 maxSpeed: 540 * MULT, stallSpeed: 150 * MULT,
                 camDist: -1200, camHeight: 300, camLookUp: 100   
             },
             'a380': {
                 name: "AIRBUS A380", filename: "airbus-a380.glb", type: "glb",
-                scale: 1.0 * MULT, clearance: 15 * MULT, 
+                scale: 1.0 * MULT, 
+                clearance: 10 * MULT, // <--- Lower this number if the A380 is hovering!
+                rotOffset: Math.PI,   // <--- FIXED: Rotates the A380 180 degrees visually!
                 maxSpeed: 560 * MULT, stallSpeed: 160 * MULT,
                 camDist: -1400, camHeight: 350, camLookUp: 120   
             }
@@ -118,7 +123,6 @@
         const scene = new THREE.Scene();
         scene.fog = new THREE.FogExp2(0x5ca0e8, 0.000008); 
         
-        // Changed FOV to 75 to force perspective and make planes look huge
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 10, 800000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -166,7 +170,6 @@
         ground.receiveShadow = true; 
         scene.add(ground);
 
-        // Trees shrunk to make plane look comparatively massive
         const treeCount = 4000;
         const trunkGeo = new THREE.CylinderGeometry(40, 60, 400, 5);
         const trunkMat = new THREE.MeshStandardMaterial({color: 0x3d2817});
@@ -184,7 +187,6 @@
             
             if (Math.abs(tx) > 4000 && tz > -80000) { 
                 let ty = getTerrainHeight(tx, tz);
-                
                 dummy.position.set(tx, ty + 200, tz);
                 dummy.updateMatrix();
                 trunks.setMatrixAt(treeIdx, dummy.matrix);
@@ -217,7 +219,6 @@
             tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; return tex;
         }
 
-        // Runway narrowed to force the planes to overhang it massively
         const runway = new THREE.Mesh(new THREE.PlaneGeometry(2000, 200000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.8 }));
         runway.rotation.x = -Math.PI / 2; 
         runway.position.y = GROUND_LEVEL + 5; 
@@ -253,7 +254,7 @@
         scene.add(cityGroup);
 
         // --- FLIGHT VARIABLES ---
-        let airplane = null;
+        let airplane = null; // This is now a Physics Group
         let speed = 0, throttle = 0;
         let gearDown = true, crashed = false, spawnProtection = false; 
         
@@ -266,14 +267,12 @@
         });
         window.addEventListener('keyup', (e) => { const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = false; });
 
-        // --- NEW BLACK SCREEN CRASH HANDLER ---
         function triggerCrash(reason) {
             crashed = true;
             document.getElementById('crash-screen').style.display = "flex";
             document.getElementById('crash-reason').innerText = reason;
             document.getElementById('ui').style.display = "none";
             
-            // Wait 3 seconds, then teleport home and reset
             setTimeout(() => {
                 document.getElementById('crash-screen').style.display = "none";
                 document.getElementById('home-screen').style.display = "flex";
@@ -282,11 +281,7 @@
                     scene.remove(airplane);
                     airplane = null;
                 }
-                
-                crashed = false;
-                speed = 0;
-                throttle = 0;
-                gearDown = true;
+                crashed = false; speed = 0; throttle = 0; gearDown = true;
             }, 3000);
         }
 
@@ -315,12 +310,20 @@
             }
         }
 
+        // --- FIXED: GROUP WRAPPER FOR BACKWARD PLANES ---
         function onModelLoaded(model) {
-            airplane = model;
-            airplane.scale.setScalar(currentPlaneData.scale);
+            // Create an invisible group that the physics engine will fly
+            airplane = new THREE.Group();
+            
+            // Fix the visual orientation of backwards planes (like the A380)
+            model.rotation.y = currentPlaneData.rotOffset;
+            model.scale.setScalar(currentPlaneData.scale);
+            
+            // Add the fixed model inside the physics group
+            airplane.add(model);
             
             airplane.position.set(0, GROUND_LEVEL + PHYSICS.clearance, 40000); 
-            airplane.rotation.set(0, Math.PI, 0); 
+            airplane.rotation.set(0, Math.PI, 0); // Physics group always faces forward safely
             
             airplane.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }});
             scene.add(airplane);
@@ -372,21 +375,38 @@
                 speed += (targetSpeed * drag - speed) * 0.2 * delta;
 
                 const isFlying = speed > PHYSICS.stallSpeed; 
-                const turnAgility = isFlying ? 1.2 * delta : 0;
-                const pitchAgility = isFlying ? 0.8 * delta : 0;
+                const turnAgility = isFlying ? 1.5 * delta : 0;
+                const pitchAgility = isFlying ? 1.0 * delta : 0;
                 
                 const currentGroundHeight = getTerrainHeight(airplane.position.x, airplane.position.z);
                 const isTouchingGround = airplane.position.y <= (currentGroundHeight + PHYSICS.clearance + 10);
-                const groundSteer = (!isFlying && isTouchingGround) ? 0.5 * delta : 0;
+                const groundSteer = (!isFlying && isTouchingGround) ? 1.0 * delta : 0;
 
+                // --- FIXED TURNING DYNAMICS ---
                 if (keys.w) airplane.rotateX(-pitchAgility);
                 if (keys.s) airplane.rotateX(pitchAgility);
-                if (keys.a) { airplane.rotateZ(turnAgility); if(isTouchingGround) airplane.rotateY(groundSteer); }
-                if (keys.d) { airplane.rotateZ(-turnAgility); if(isTouchingGround) airplane.rotateY(-groundSteer); }
+                
+                // A and D roll the wings
+                if (keys.a) { 
+                    if (isFlying) airplane.rotateZ(turnAgility); 
+                    if (isTouchingGround) airplane.rotateY(groundSteer); 
+                }
+                if (keys.d) { 
+                    if (isFlying) airplane.rotateZ(-turnAgility); 
+                    if (isTouchingGround) airplane.rotateY(-groundSteer); 
+                }
+                
+                // Q and E still manually control the rudder
                 if (keys.q && isFlying) airplane.rotateY(turnAgility * 0.5);
                 if (keys.e && isFlying) airplane.rotateY(-turnAgility * 0.5);
 
-                airplane.rotation.z -= airplane.rotation.z * 1.0 * delta;
+                // COUPLING: If the wings are rolled, the plane naturally turns (yaws) in that direction!
+                if (isFlying) {
+                    airplane.rotateY(airplane.rotation.z * 0.8 * delta);
+                }
+
+                // Auto-leveling Roll (Stability)
+                airplane.rotation.z -= airplane.rotation.z * 1.5 * delta;
 
                 const collisionFloor = currentGroundHeight + PHYSICS.clearance;
                 let verticalVelocity = 0;
@@ -437,11 +457,8 @@
                 camOffset.applyQuaternion(airplane.quaternion);
                 const targetCamPos = airplane.position.clone().add(camOffset);
                 
-                // Prevent camera from clipping underground so terrain never disappears
                 const camGroundHeight = getTerrainHeight(targetCamPos.x, targetCamPos.z);
-                if (targetCamPos.y < camGroundHeight + 100) {
-                    targetCamPos.y = camGroundHeight + 100;
-                }
+                if (targetCamPos.y < camGroundHeight + 100) targetCamPos.y = camGroundHeight + 100;
 
                 camera.position.lerp(targetCamPos, 0.1);
                 camera.lookAt(airplane.position.x, airplane.position.y + currentPlaneData.camLookUp, airplane.position.z);
