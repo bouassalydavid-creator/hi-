@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flight Simulator - 50x Scale Edition</title>
+    <title>Flight Simulator - True Titan Scale</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
         
@@ -35,12 +35,13 @@
             color: white; font-size: 24px; background: rgba(0,0,0,0.8);
             padding: 20px 40px; border-radius: 10px; font-weight: bold; z-index: 100; border: 1px solid #00ff9d; text-align: center;
         }
+
+        /* NEW BLACK CRASH SCREEN */
         #crash-screen {
-            display: none; position: absolute; inset: 0; background: rgba(255, 0, 0, 0.6); color: white; 
+            display: none; position: absolute; inset: 0; background: #000000; color: white; 
             justify-content: center; align-items: center; flex-direction: column; 
-            font-size: 64px; font-weight: bold; z-index: 150; text-shadow: 2px 2px 10px black; text-align: center;
+            font-size: 64px; font-weight: bold; z-index: 150; text-shadow: 2px 2px 15px rgba(255,0,0,0.8); text-align: center;
         }
-        .btn { margin-top: 20px; padding: 15px 30px; font-size: 24px; cursor: pointer; background: white; color: red; border: none; font-weight: bold; border-radius: 5px; }
     </style>
     <script type="importmap">
         {
@@ -55,7 +56,7 @@
 
     <div id="home-screen">
         <h1>TITAN FLIGHT SIMULATOR</h1>
-        <div style="color:#aaa; margin-bottom: 20px;">WORLD GENERATION: 50X MASSIVE SCALE</div>
+        <div style="color:#aaa; margin-bottom: 20px;">WORLD GENERATION: RELATIVE TITAN SCALE</div>
         <div class="fleet-container">
             <div class="plane-card" id="btn-737">BOEING 737 MAX<div class="plane-desc">Narrow-body</div></div>
             <div class="plane-card" id="btn-747">BOEING 747-400<div class="plane-desc">Air France</div></div>
@@ -67,8 +68,8 @@
     
     <div id="crash-screen">
         <div>AIRCRAFT DESTROYED</div>
-        <div style="font-size: 24px; margin-top: 10px;" id="crash-reason"></div>
-        <button class="btn" onclick="location.reload()">RESTART SIMULATION</button>
+        <div style="font-size: 24px; margin-top: 15px; color: #ff5555;" id="crash-reason"></div>
+        <div style="font-size: 16px; margin-top: 40px; color: #888; font-weight: normal;">Teleporting to base...</div>
     </div>
 
     <div id="ui">
@@ -87,28 +88,27 @@
         import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // --- 50X SCALE MULTIPLIER ---
         const MULT = 50;
 
-        // --- CALIBRATED TO BE MASSIVE BUT KEEP THE CAMERA CLOSE ---
+        // Camera pulled in tight to emphasize massive plane size
         const FLEET = {
             '737': {
                 name: "BOEING 737 MAX", filename: "plane.fbx", type: "fbx",
                 scale: 0.05 * MULT, clearance: 30 * MULT, 
                 maxSpeed: 520 * MULT, stallSpeed: 140 * MULT,
-                camDist: -1200, camHeight: 400, camLookUp: 150   
+                camDist: -800, camHeight: 200, camLookUp: 80   
             },
             '747': {
                 name: "AIR FRANCE 747-400", filename: "air_france_boeing_747-400.glb", type: "glb",
                 scale: 1.0 * MULT, clearance: 18 * MULT, 
                 maxSpeed: 540 * MULT, stallSpeed: 150 * MULT,
-                camDist: -2000, camHeight: 600, camLookUp: 250   
+                camDist: -1200, camHeight: 300, camLookUp: 100   
             },
             'a380': {
                 name: "AIRBUS A380", filename: "airbus-a380.glb", type: "glb",
                 scale: 1.0 * MULT, clearance: 15 * MULT, 
                 maxSpeed: 560 * MULT, stallSpeed: 160 * MULT,
-                camDist: -2500, camHeight: 700, camLookUp: 300   
+                camDist: -1400, camHeight: 350, camLookUp: 120   
             }
         };
 
@@ -118,7 +118,8 @@
         const scene = new THREE.Scene();
         scene.fog = new THREE.FogExp2(0x5ca0e8, 0.000008); 
         
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 10, 800000);
+        // Changed FOV to 75 to force perspective and make planes look huge
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 10, 800000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
@@ -134,7 +135,6 @@
         sunLight.shadow.camera.far = 200000;
         scene.add(sunLight);
 
-        // --- TOPOGRAPHICAL ENVIRONMENT ---
         const GROUND_LEVEL = -500;
 
         function getTerrainHeight(x, z) {
@@ -166,10 +166,11 @@
         ground.receiveShadow = true; 
         scene.add(ground);
 
+        // Trees shrunk to make plane look comparatively massive
         const treeCount = 4000;
-        const trunkGeo = new THREE.CylinderGeometry(80, 120, 800, 5);
+        const trunkGeo = new THREE.CylinderGeometry(40, 60, 400, 5);
         const trunkMat = new THREE.MeshStandardMaterial({color: 0x3d2817});
-        const leavesGeo = new THREE.ConeGeometry(600, 1600, 5);
+        const leavesGeo = new THREE.ConeGeometry(300, 800, 5);
         const leavesMat = new THREE.MeshStandardMaterial({color: 0x143d14});
 
         const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, treeCount);
@@ -181,14 +182,14 @@
             let tx = (Math.random() - 0.5) * 400000;
             let tz = (Math.random() - 0.5) * 400000;
             
-            if (Math.abs(tx) > 8000 && tz > -80000) { 
+            if (Math.abs(tx) > 4000 && tz > -80000) { 
                 let ty = getTerrainHeight(tx, tz);
                 
-                dummy.position.set(tx, ty + 400, tz);
+                dummy.position.set(tx, ty + 200, tz);
                 dummy.updateMatrix();
                 trunks.setMatrixAt(treeIdx, dummy.matrix);
 
-                dummy.position.set(tx, ty + 1600, tz);
+                dummy.position.set(tx, ty + 800, tz);
                 dummy.updateMatrix();
                 leaves.setMatrixAt(treeIdx, dummy.matrix);
                 treeIdx++;
@@ -216,8 +217,8 @@
             tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; return tex;
         }
 
-        // --- MASSIVE WIDE RUNWAY FOR 50X PLANES ---
-        const runway = new THREE.Mesh(new THREE.PlaneGeometry(8000, 200000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.8 }));
+        // Runway narrowed to force the planes to overhang it massively
+        const runway = new THREE.Mesh(new THREE.PlaneGeometry(2000, 200000), new THREE.MeshStandardMaterial({ map: createRunwayTexture(), roughness: 0.8 }));
         runway.rotation.x = -Math.PI / 2; 
         runway.position.y = GROUND_LEVEL + 5; 
         runway.receiveShadow = true; 
@@ -227,13 +228,13 @@
         const buildingGeo = new THREE.BoxGeometry(1, 1, 1);
         
         const terminal = new THREE.Mesh(buildingGeo, new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
-        terminal.scale.set(15000, 2000, 6000);
-        terminal.position.set(-15000, GROUND_LEVEL + 1000, 0);
+        terminal.scale.set(6000, 1000, 3000);
+        terminal.position.set(-6000, GROUND_LEVEL + 500, 0);
         cityGroup.add(terminal);
 
         const tower = new THREE.Mesh(buildingGeo, new THREE.MeshStandardMaterial({ color: 0x888888 }));
-        tower.scale.set(1000, 5000, 1000);
-        tower.position.set(-8000, GROUND_LEVEL + 2500, 0);
+        tower.scale.set(500, 3000, 500);
+        tower.position.set(-3000, GROUND_LEVEL + 1500, 0);
         cityGroup.add(tower);
 
         for(let i = 0; i < 150; i++) {
@@ -242,11 +243,11 @@
                 metalness: 0.8, roughness: 0.2
             });
             let mesh = new THREE.Mesh(buildingGeo, mat);
-            let w = 1000 + Math.random() * 3000;
-            let h = 3000 + Math.random() * 15000;
-            let d = 1000 + Math.random() * 3000;
+            let w = 500 + Math.random() * 1500;
+            let h = 1500 + Math.random() * 8000;
+            let d = 500 + Math.random() * 1500;
             mesh.scale.set(w, h, d);
-            mesh.position.set(-30000 - Math.random() * 50000, GROUND_LEVEL + h/2, (Math.random() - 0.5) * 60000);
+            mesh.position.set(-15000 - Math.random() * 40000, GROUND_LEVEL + h/2, (Math.random() - 0.5) * 60000);
             cityGroup.add(mesh);
         }
         scene.add(cityGroup);
@@ -261,9 +262,33 @@
 
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = true;
-            if (key === 'g' && !crashed && airplane && airplane.position.y > (getTerrainHeight(airplane.position.x, airplane.position.z) + PHYSICS.clearance + 500)) gearDown = !gearDown;
+            if (airplane && key === 'g' && !crashed && airplane.position.y > (getTerrainHeight(airplane.position.x, airplane.position.z) + PHYSICS.clearance + 500)) gearDown = !gearDown;
         });
         window.addEventListener('keyup', (e) => { const key = e.key.toLowerCase(); if (keys.hasOwnProperty(key)) keys[key] = false; });
+
+        // --- NEW BLACK SCREEN CRASH HANDLER ---
+        function triggerCrash(reason) {
+            crashed = true;
+            document.getElementById('crash-screen').style.display = "flex";
+            document.getElementById('crash-reason').innerText = reason;
+            document.getElementById('ui').style.display = "none";
+            
+            // Wait 3 seconds, then teleport home and reset
+            setTimeout(() => {
+                document.getElementById('crash-screen').style.display = "none";
+                document.getElementById('home-screen').style.display = "flex";
+                
+                if (airplane) {
+                    scene.remove(airplane);
+                    airplane = null;
+                }
+                
+                crashed = false;
+                speed = 0;
+                throttle = 0;
+                gearDown = true;
+            }, 3000);
+        }
 
         // --- START MENU LOGIC ---
         document.getElementById('btn-737').addEventListener('click', () => spawnAircraft('737'));
@@ -294,7 +319,6 @@
             airplane = model;
             airplane.scale.setScalar(currentPlaneData.scale);
             
-            // Spawn 40,000 units back on the 200,000 unit runway
             airplane.position.set(0, GROUND_LEVEL + PHYSICS.clearance, 40000); 
             airplane.rotation.set(0, Math.PI, 0); 
             
@@ -381,45 +405,39 @@
                 airplane.translateZ(speed * delta);
                 airplane.position.y += verticalVelocity * delta;
 
+                // --- COLLISION TRIGGER ---
                 if (airplane.position.y <= collisionFloor) {
                     airplane.position.y = collisionFloor; 
-                    
                     const pitchRad = airplane.rotation.x;
                     const rollRad = Math.abs(airplane.rotation.z);
                     
                     if (!spawnProtection) {
                         if (verticalVelocity < (-20 * MULT) || pitchRad < -0.15 || rollRad > 0.3 || (!gearDown && (speed/MULT) > 50)) {
-                            crashed = true;
-                            document.getElementById('crash-screen').style.display = "flex";
-                            if (!gearDown) document.getElementById('crash-reason').innerText = "BELLY LANDING. GEAR WAS UP!";
-                            else if (pitchRad < -0.15) document.getElementById('crash-reason').innerText = "NOSE DIVE. PITCHED TOO FAR DOWN.";
-                            else document.getElementById('crash-reason').innerText = "TERRAIN COLLISION / HARD LANDING.";
+                            let reason = (!gearDown) ? "BELLY LANDING. GEAR WAS UP!" :
+                                         (pitchRad < -0.15) ? "NOSE DIVE. PITCHED TOO FAR DOWN." :
+                                         "TERRAIN COLLISION / HARD LANDING.";
+                            triggerCrash(reason);
                         }
                     } else {
-                        verticalVelocity = 0; 
-                        airplane.rotation.x = 0; 
-                        airplane.rotation.z = 0;
-                        airplane.position.y = collisionFloor; // Force lock to floor
+                        verticalVelocity = 0; airplane.rotation.x = 0; airplane.rotation.z = 0;
+                        airplane.position.y = collisionFloor; 
                     }
                     if (!crashed) airplane.rotation.x -= airplane.rotation.x * 5 * delta;
                 }
 
-                if (airplane.position.x < -10000 && airplane.position.x > -80000 && 
+                if (airplane.position.x < -6000 && airplane.position.x > -80000 && 
                     airplane.position.z > -30000 && airplane.position.z < 30000 && 
                     airplane.position.y < (GROUND_LEVEL + 15000)) {
-                    if (!spawnProtection) { 
-                        crashed = true; 
-                        document.getElementById('crash-screen').style.display = "flex"; 
-                        document.getElementById('crash-reason').innerText = "COLLISION WITH CITY SKYSCRAPER!";
+                    if (!spawnProtection && !crashed) { 
+                        triggerCrash("COLLISION WITH CITY SKYSCRAPER!");
                     }
                 }
 
-                // --- CAMERA POSITIONING & UNDERGROUND PREVENTION ---
                 const camOffset = new THREE.Vector3(0, currentPlaneData.camHeight, currentPlaneData.camDist);
                 camOffset.applyQuaternion(airplane.quaternion);
                 const targetCamPos = airplane.position.clone().add(camOffset);
                 
-                // CRITICAL FIX: Prevent the camera from ever clipping under the ground.
+                // Prevent camera from clipping underground so terrain never disappears
                 const camGroundHeight = getTerrainHeight(targetCamPos.x, targetCamPos.z);
                 if (targetCamPos.y < camGroundHeight + 100) {
                     targetCamPos.y = camGroundHeight + 100;
